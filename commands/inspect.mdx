@@ -1,0 +1,113 @@
+---
+title: "Inspect commands"
+description: "Commands for viewing CSV structure and content without modifying data."
+---
+
+## count
+
+Count data rows in a file. The header row is excluded from the count by default.
+
+**Synopsis**
+
+```bash
+oxsv count <file>
+oxsv -n count <file>
+```
+
+Pass the global `-n` flag before the command name to treat the header row as data, including it in the count.
+
+**Example**
+
+```bash
+$ oxsv count users.csv
+42
+```
+
+---
+
+## headers
+
+Show column names with their 1-based index. Output is tab-separated: index, then name.
+
+**Synopsis**
+
+```bash
+oxsv headers <file>
+```
+
+**Example**
+
+```bash
+$ oxsv headers users.csv
+1	id
+2	name
+3	email
+4	status
+```
+
+---
+
+## head
+
+Print the first N rows of a file, including the header. Defaults to 10 rows.
+
+**Synopsis**
+
+```bash
+oxsv head [-n NUM] <file>
+```
+
+**Flags**
+
+| Flag       | Description                       |
+| :--------- | :-------------------------------- |
+| `-n NUM`   | Number of data rows to print      |
+
+<ParamField query="-n" type="integer">
+  Number of data rows to print. Defaults to `10`.
+</ParamField>
+
+**Example**
+
+```bash
+$ oxsv head -n 3 users.csv
+id,name,email,status
+1,alice,alice@example.com,active
+2,bob,bob@example.com,inactive
+3,carol,carol@example.com,active
+```
+
+---
+
+## tail
+
+Print the last N rows of a file, including the header. Defaults to 10 rows.
+
+**Synopsis**
+
+```bash
+oxsv tail [-n NUM] <file>
+```
+
+**Flags**
+
+| Flag       | Description                       |
+| :--------- | :-------------------------------- |
+| `-n NUM`   | Number of data rows to print      |
+
+<ParamField query="-n" type="integer">
+  Number of data rows to print. Defaults to `10`.
+</ParamField>
+
+<Note>
+  When a `.idx` index file is present (created with `oxsv index`), `tail` seeks directly to the end of the file in O(1) time. Without an index file it streams the entire file.
+</Note>
+
+**Example**
+
+```bash
+$ oxsv tail -n 2 users.csv
+id,name,email,status
+41,yuki,yuki@example.com,active
+42,zara,zara@example.com,inactive
+```

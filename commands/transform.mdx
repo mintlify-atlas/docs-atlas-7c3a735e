@@ -1,0 +1,211 @@
+---
+title: "Transform commands"
+description: "Commands for reshaping, sorting, and analyzing CSV data."
+---
+
+## sort
+
+Sort rows by a column. The header row is preserved at the top of the output.
+
+**Synopsis**
+
+```bash
+oxsv sort -s COL [-N] [-R] <file>
+```
+
+**Flags**
+
+| Flag     | Description                              |
+| :------- | :--------------------------------------- |
+| `-s COL` | Column to sort by (required)             |
+| `-N`     | Numeric sort (default: lexicographic)    |
+| `-R`     | Reverse order (descending)               |
+
+<ParamField query="-s" type="string" required>
+  Column name to sort by.
+</ParamField>
+
+<ParamField query="-N" type="boolean">
+  Sort values as numbers instead of strings. Without this flag, sort order is lexicographic.
+</ParamField>
+
+<ParamField query="-R" type="boolean">
+  Reverse the sort order. Produces descending output.
+</ParamField>
+
+**Example: alphabetical**
+
+```bash
+$ oxsv sort -s name users.csv
+id,name,email,status
+1,alice,alice@example.com,active
+2,bob,bob@example.com,inactive
+3,carol,carol@example.com,active
+```
+
+**Example: numeric descending**
+
+```bash
+$ oxsv sort -s age -N -R users.csv
+id,name,age,status
+5,eve,65,active
+4,dave,34,inactive
+3,carol,22,active
+```
+
+---
+
+## fmt
+
+Reformat a CSV file with a different output delimiter. The input delimiter is controlled by the global `-d` flag.
+
+**Synopsis**
+
+```bash
+oxsv fmt [-t] [--out-delimiter CHAR] <file>
+```
+
+**Flags**
+
+| Flag                   | Description                          |
+| :--------------------- | :----------------------------------- |
+| `-t`                   | Output as tab-separated (TSV)        |
+| `--out-delimiter CHAR` | Set output field delimiter           |
+
+<ParamField query="-t" type="boolean">
+  Output tab-separated values. Equivalent to `--out-delimiter $'\t'`.
+</ParamField>
+
+<ParamField query="--out-delimiter" type="string">
+  Single character to use as the output field delimiter.
+</ParamField>
+
+**Example: CSV to TSV**
+
+```bash
+$ oxsv fmt -t data.csv > data.tsv
+```
+
+**Example: CSV to pipe-separated**
+
+```bash
+$ oxsv fmt --out-delimiter '|' data.csv
+id|name|email|status
+1|alice|alice@example.com|active
+2|bob|bob@example.com|inactive
+```
+
+---
+
+## cat
+
+Concatenate multiple CSV files into a single output. The first file is written in full. Each subsequent file has its header row stripped, assuming all files share an identical schema.
+
+**Synopsis**
+
+```bash
+oxsv cat <file1> [file2] ...
+```
+
+Pass the global `-n` flag before `cat` to output all files as-is, without stripping any headers.
+
+**Example**
+
+```bash
+$ oxsv cat jan.csv feb.csv mar.csv > q1.csv
+```
+
+---
+
+## stats
+
+Show per-column statistics for a file.
+
+**Synopsis**
+
+```bash
+oxsv stats [-s COL] <file>
+```
+
+**Flags**
+
+| Flag     | Description                              |
+| :------- | :--------------------------------------- |
+| `-s COL` | Column name to report (default: all)     |
+
+<ParamField query="-s" type="string">
+  Column name to show statistics for. When omitted, all columns are reported.
+</ParamField>
+
+Output columns: `field`, `type`, `min`, `max`, `mean`, `count`, `nullcount`.
+
+Integer columns report numeric `min`, `max`, and `mean`. Columns with Unicode or mixed content show `--` for those fields.
+
+**Example: single column**
+
+```bash
+$ oxsv stats -s age users.csv
+field	type	min	max	mean	count	nullcount
+age	Integer	18	65	34	42	0
+```
+
+**Example: all columns**
+
+```bash
+$ oxsv stats users.csv
+field	type	min	max	mean	count	nullcount
+id	Integer	1	42	21	42	0
+name	Unicode	--	--	--	42	0
+email	Unicode	--	--	--	42	0
+status	Unicode	--	--	--	42	0
+```
+
+---
+
+## frequency
+
+Count unique values in a column and report their frequency. The alias `freq` is interchangeable with `frequency`.
+
+**Synopsis**
+
+```bash
+oxsv frequency -s COL [-l N] [--asc] <file>
+oxsv freq     -s COL [-l N] [--asc] <file>
+```
+
+**Flags**
+
+| Flag     | Description                                       |
+| :------- | :------------------------------------------------ |
+| `-s COL` | Column to count values in (required)              |
+| `-l N`   | Show only the top N values (default: all)         |
+| `--asc`  | Sort ascending by count (default: descending)     |
+
+<ParamField query="-s" type="string" required>
+  Column name to count unique values in.
+</ParamField>
+
+<ParamField query="-l" type="integer">
+  Limit output to the top N values by count.
+</ParamField>
+
+<ParamField query="--asc" type="boolean">
+  Sort results by count in ascending order. Default is descending.
+</ParamField>
+
+**Example: all values**
+
+```bash
+$ oxsv frequency -s status users.csv
+field	value	count
+status	active	28
+status	inactive	14
+```
+
+**Example: top 1 value**
+
+```bash
+$ oxsv freq -s status -l 1 users.csv
+field	value	count
+status	active	28
+```

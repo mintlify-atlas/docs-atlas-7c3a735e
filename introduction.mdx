@@ -1,0 +1,64 @@
+---
+title: "Introduction"
+description: "oxsv is a drop-in replacement for xsv, written in x86-64 NASM assembly with AVX2 SIMD. It processes large CSVs that crash other tools — in under a second."
+---
+
+oxsv is a SIMD-native CSV toolkit built entirely in x86-64 assembly. It implements the same commands and flags as [xsv](https://github.com/BurntSushi/xsv), so you can use it as a drop-in replacement without changing your scripts.
+
+The binary is 27 KB stripped — 178x smaller than xsv — and has zero runtime dependencies. There is no libc in the hot path, no allocator, and no garbage collector.
+
+## What problem it solves
+
+Your 8 GB CSV crashed VSCode. Excel cannot open it. pandas ate 16 GB of RAM and died.
+
+oxsv processes it in 0.2 seconds.
+
+oxsv is designed specifically for files that are too large for conventional tools. Because it memory-maps the file instead of loading it, physical RAM usage stays in single-digit megabytes regardless of file size. A 64 GB CSV on a 4 GB machine works fine.
+
+## How it works
+
+**mmap** — The file is memory-mapped, not loaded into memory. Physical RAM usage stays in single-digit megabytes regardless of file size.
+
+**AVX2** — Delimiters are scanned 32 bytes at a time using SIMD instructions. On DDR4-3200, this saturates memory bandwidth at approximately 30 GB/s.
+
+**No runtime** — The C layer parses arguments only and never touches file data. Everything that processes your CSV is hand-written x86-64 assembly with no libc in the hot path.
+
+**xsv compatibility** — oxsv implements the core xsv commands with the same names and similar flags. The key difference is that `search` uses exact match by default (xsv uses regex). The commands `join`, `sample`, `split`, `flatten`, and `table` are not implemented.
+
+## Benchmark
+
+**1 GB CSV, 6.27M rows, 18 columns** (WSL2, DDR4-3200):
+
+| Command   | oxsv   | xsv (Rust) | Speedup |
+|:----------|:-------|:-----------|:--------|
+| count     | 0.17s  | 13.14s     | 76x     |
+| headers   | 0.002s | 0.044s     | 22x     |
+| head      | 0.002s | 0.023s     | 12x     |
+| select    | 0.82s  | 19.27s     | 24x     |
+| search    | 1.31s  | 25.63s     | 20x     |
+| frequency | 1.14s  | 29.17s     | 26x     |
+| index     | 1.11s  | 14.22s     | 13x     |
+| stats     | 12.97s | 74.25s     | 5.7x    |
+| sort      | 2.15s  | 47.58s     | 22x     |
+| fmt       | 2.43s  | 37.26s     | 15x     |
+
+<Note>
+  **System requirements:** Linux x86-64 with AVX2 support, `nasm`, and `gcc`. oxsv does not run on ARM or x86 CPUs that lack AVX2.
+</Note>
+
+## Where to go next
+
+<CardGroup cols={2}>
+  <Card title="Installation" icon="download" href="/installation">
+    Build from source using nasm and gcc. Includes Makefile targets and verification steps.
+  </Card>
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Inspect headers, filter rows, and build an index in your first few minutes.
+  </Card>
+  <Card title="Command reference" icon="terminal" href="/commands/inspect">
+    Every command, flag, and output format with real terminal examples.
+  </Card>
+  <Card title="Benchmarks" icon="gauge-high" href="/internals/benchmarks">
+    Full benchmark results including SIMD microbenchmarks against naive C.
+  </Card>
+</CardGroup>

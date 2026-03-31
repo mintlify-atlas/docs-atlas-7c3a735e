@@ -1,0 +1,86 @@
+---
+title: "Benchmarks"
+description: "Performance comparison between oxsv and xsv across all commands, plus SIMD microbenchmarks."
+---
+
+## Command-level benchmarks
+
+Test environment: WSL2, Intel Core, DDR4-3200.
+Test file: 1 GB CSV, 6.27M rows, 18 columns. Generated with `python3 test/gen.py 1G`.
+
+| Command     | oxsv    | xsv (Rust) | Speedup |
+|:------------|:--------|:-----------|:--------|
+| `count`     | 0.17s   | 13.14s     | 76x     |
+| `headers`   | 0.002s  | 0.044s     | 22x     |
+| `head`      | 0.002s  | 0.023s     | 12x     |
+| `select`    | 0.82s   | 19.27s     | 24x     |
+| `search`    | 1.31s   | 25.63s     | 20x     |
+| `frequency` | 1.14s   | 29.17s     | 26x     |
+| `index`     | 1.11s   | 14.22s     | 13x     |
+| `stats`     | 12.97s  | 74.25s     | 5.7x    |
+| `sort`      | 2.15s   | 47.58s     | 22x     |
+| `fmt`       | 2.43s   | 37.26s     | 15x     |
+
+All 10 commands are faster than xsv. The speedup range is 5.7x (`stats`) to 76x (`count`).
+
+## SIMD microbenchmarks
+
+These benchmarks isolate the core scan and parse functions from I/O overhead. Built with `gcc -O2`. See `test/bench.c`.
+
+| Function                   | ASM       | C         | Speedup |
+|:---------------------------|:----------|:----------|:--------|
+| `scan_count_byte` (16 MB)  | 8.9 GB/s  | 3.3 GB/s  | 2.7x    |
+| `scan_find_byte` (16 MB)   | 11.3 GB/s | 2.3 GB/s  | 5.0x    |
+| `scan_find_byte` (early exit) | 8 ns   | 88 ns     | 10.8x   |
+| `parse_get_field` (160 B)  | ~20 ns    | ~50 ns    | ~2.5x   |
+
+<Info>
+  The early-exit `scan_find_byte` test places the target at offset ~200, which
+  is a typical CSV line length. It measures short-scan latency rather than
+  sustained throughput, and shows the largest relative gain.
+</Info>
+
+## Binary size comparison
+
+| Binary     | Size   |
+|:-----------|:-------|
+| oxsv       | 27 KB  |
+| xsv (Rust) | 4.8 MB |
+| Ratio      | 178x   |
+
+oxsv is 178x smaller than xsv. The binary is smaller than most favicons. This is a direct result of having no libc in the hot path, no allocator, no garbage collector, and no runtime — just hand-written assembly and a thin C argument parser.
+
+## Why `count` is 76x faster
+
+`count` only scans for newlines (byte `0x0A`) using AVX2 `VPCMPEQB` + `POPCNT`. There is no field parsing and no output formatting — just a single byte-counting pass over the memory-mapped file.
+
+xsv parses every CSV record to count rows, including field boundary detection, quote handling, and allocation of record structures. The 76x gap is the cost of that overhead on a 1 GB file.
+
+<Tip>
+  If you only need a row count, `oxsv count` is the right tool. It runs in
+  0.17s on a 1 GB file and uses single-digit megabytes of RAM regardless of
+  file size.
+</Tip>
+
+## Why `headers` and `head` are sub-millisecond
+
+`headers` and `head` use lazy `mmap` without `MAP_POPULATE`. The kernel does not prefault the entire file into RAM; it only faults in pages as they are accessed. Because both commands read only the first few lines, only the first few 4 KB pages are ever touched.
+
+This keeps latency under 2 ms even on multi-gigabyte files. xsv must initialize its CSV reader over the full file path, which involves more setup and buffering overhead even for small reads.
+
+## Reproduce benchmarks
+
+```bash
+make release
+python3 test/gen.py 1G              # generate test/bench_1G.csv
+bash test/bench.sh                  # command-level benchmarks
+gcc -O2 -Wall -I./include -o test/bench test/bench.c $(ls out/obj/*.o | grep -v main.o)
+./test/bench                        # SIMD microbenchmarks
+```
+
+<Note>
+  These benchmarks are intended to give a rough estimate of oxsv's performance
+  relative to xsv and to catch significant regressions. Absolute numbers depend
+  on hardware, system load, and page cache state. Run on a quiet machine and
+  warm the page cache for the most stable results.
+</Note>

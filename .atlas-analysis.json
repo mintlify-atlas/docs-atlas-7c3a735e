@@ -1,0 +1,73 @@
+{
+  "projectType": "cli-tool",
+  "projectName": "oxsv",
+  "projectDescription": "A SIMD-native CSV toolkit written in x86-64 assembly that serves as a drop-in replacement for xsv, delivering up to 76x faster performance through AVX2 acceleration and memory-mapped I/O.",
+  "theme": "aspen",
+  "primaryColor": "#94cb04",
+  "lightColor": "#545454",
+  "darkColor": null,
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": ["introduction", "installation", "quickstart"]
+          },
+          {
+            "group": "Command Reference",
+            "pages": [
+              "commands/inspect",
+              "commands/filter",
+              "commands/transform",
+              "commands/index"
+            ]
+          },
+          {
+            "group": "Guides",
+            "pages": [
+              "guides/global-flags",
+              "guides/large-files",
+              "guides/recipes",
+              "guides/xsv-compatibility"
+            ]
+          },
+          {
+            "group": "Internals",
+            "pages": [
+              "internals/architecture",
+              "internals/simd",
+              "internals/benchmarks"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "AVX2 SIMD acceleration scanning 32 bytes per cycle",
+    "Memory-mapped I/O for processing files larger than available RAM",
+    "Zero runtime dependencies — hand-written x86-64 assembly in the hot path",
+    "27 KB stripped binary (178x smaller than xsv)",
+    "Drop-in compatibility with xsv command interface",
+    "UTF-8 native with correct multibyte handling",
+    "Row offset index for O(1) random access on large files",
+    "Pipe/stdin support via --no-mmap flag"
+  ],
+  "publicApiSurface": [
+    "oxsv count",
+    "oxsv headers",
+    "oxsv head",
+    "oxsv tail",
+    "oxsv select",
+    "oxsv search",
+    "oxsv slice",
+    "oxsv index",
+    "oxsv stats",
+    "oxsv frequency (alias: freq)",
+    "oxsv sort",
+    "oxsv fmt",
+    "oxsv cat"
+  ]
+}

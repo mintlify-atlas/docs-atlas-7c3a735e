@@ -1,0 +1,153 @@
+---
+title: "Architecture"
+description: "How oxsv is structured — from argument parsing to SIMD-accelerated data processing."
+---
+
+## Overview
+
+oxsv is split into two distinct layers that never mix responsibilities:
+
+- **A thin C layer** — handles argument parsing and global flag state. It never opens, reads, or touches file data.
+- **Hand-written x86-64 assembly** — handles everything that touches data: memory mapping, SIMD scanning, CSV parsing, output formatting.
+
+This strict boundary means the hot path contains no libc overhead, no allocator, and no garbage collector.
+
+## Source layout
+
+```text
+src/
+├── main.c        argument parsing only
+├── oxsv.asm      mmap + CPUID dispatch
+├── cmd/          one .asm file per subcommand
+│   ├── count.asm
+│   ├── headers.asm
+│   ├── head.asm
+│   ├── tail.asm
+│   ├── select.asm
+│   ├── search.asm
+│   ├── slice.asm
+│   ├── index.asm
+│   ├── stats.asm
+│   ├── frequency.asm
+│   ├── sort.asm
+│   ├── fmt.asm
+│   └── cat.asm
+└── core/         shared SIMD primitives and utilities
+    ├── scan.asm
+    ├── parse.asm
+    ├── io.asm
+    ├── mmap.asm
+    ├── out.asm
+    ├── num.asm
+    ├── hash.asm
+    ├── idx.asm
+    ├── sort.asm
+    └── detect.asm
+```
+
+## The C layer
+
+`main.c` is the only C file in the project. Its sole job is to translate `argv` into global state and dispatch to the correct assembly subcommand. It never opens a CSV file or reads file data.
+
+Responsibilities:
+
+- Call `oxsv_init()` once at startup to initialize the ASM runtime (CPUID detection, default globals).
+- Parse pre-command global flags: `-d` (delimiter), `-n` (no headers), `-o` (output file), `--no-mmap`.
+- Strip those global flags from the sub-command `argv` slice so subcommands receive a clean argument list.
+- Walk the command dispatch table and call the matching subcommand function.
+
+The global config variables are exported from `oxsv.asm` and declared in `include/oxsv.h`:
+
+```c
+extern uint8_t  oxsv_delimiter;   /* field delimiter (default: ',') */
+extern uint8_t  oxsv_no_headers;  /* 1 = first row is data, not header */
+extern uint8_t  oxsv_quoted;      /* 1 = enable quoted CSV parsing */
+extern uint8_t  oxsv_no_mmap;     /* 1 = use streaming read instead of mmap */
+extern uint32_t oxsv_out_fd;      /* output fd (default: 1 = stdout) */
+```
+
+<Info>
+  `oxsv_init()` is idempotent — subsequent calls are no-ops, guarded by an
+  `init_done` flag in `oxsv.asm`. It calls `detect_init` from `core/detect.asm`
+  to cache CPUID feature flags (AVX2, POPCNT, BMI1) into global bytes, then sets
+  all config variables to their defaults.
+</Info>
+
+The command dispatch table in `main.c` maps string names to function pointers:
+
+```c
+static struct {
+    const char *name;
+    int (*fn)(int, char **);
+} cmds[] = {
+    {"count",     oxsv_count},
+    {"headers",   oxsv_headers},
+    {"head",      oxsv_head},
+    {"tail",      oxsv_tail},
+    {"select",    oxsv_select},
+    {"search",    oxsv_search},
+    {"slice",     oxsv_slice},
+    {"index",     oxsv_index},
+    {"stats",     oxsv_stats},
+    {"frequency", oxsv_frequency},
+    {"freq",      oxsv_frequency},
+    {"sort",      oxsv_sort},
+    {"fmt",       oxsv_fmt},
+    {"cat",       oxsv_cat},
+    {NULL, NULL}
+};
+```
+
+## The assembly layer
+
+### `oxsv.asm` — runtime init and global state
+
+`oxsv.asm` owns the five global config variables in `.bss` and exports them to C. It also implements two public functions:
+
+- `oxsv_version()` — returns a pointer to the version string in `.rodata`.
+- `oxsv_init()` — calls `detect_init`, sets all config defaults (`','` delimiter, stdout fd), then sets `init_done` to prevent re-initialization.
+
+### `cmd/*.asm` — one file per subcommand
+
+Each subcommand is implemented in its own file. The public symbol name matches the C declaration in `oxsv.h` (e.g., `oxsv_count` in `cmd/count.asm`). Subcommands call into `core/` primitives for scanning, parsing, and I/O.
+
+### `core/*.asm` — shared SIMD primitives
+
+| File          | Provides                                                   |
+|:--------------|:-----------------------------------------------------------|
+| `scan.asm`    | `scan_count_byte`, `scan_find_byte` — SIMD byte scanning   |
+| `parse.asm`   | `parse_get_field` — CSV field extraction                   |
+| `mmap.asm`    | `mmap`/`munmap` syscall wrappers                           |
+| `io.asm`      | Buffered read for `--no-mmap` (streaming) mode             |
+| `out.asm`     | Buffered output, write syscall wrappers                    |
+| `num.asm`     | Integer and floating-point formatting                      |
+| `hash.asm`    | Hash table primitives used by `frequency` and `sort`       |
+| `idx.asm`     | Row offset index read/write for `index` and `slice`        |
+| `sort.asm`    | Sorting primitives                                         |
+| `detect.asm`  | CPUID feature detection (`detect_has_avx2`, `detect_has_popcnt`, `detect_has_bmi1`) |
+
+All assembly files include `core/platform.inc` for shared constants (`COMMA`, `STDOUT`, `OXSV_VERSION`, etc.).
+
+## Memory model
+
+oxsv maps the input file into virtual address space with `mmap` rather than reading it into a buffer. This has two important consequences:
+
+- **Physical RAM usage stays low** regardless of file size. A 64 GB CSV on a 4 GB machine works fine because the kernel pages data in on demand and evicts pages under memory pressure.
+- **`head` and `headers` use lazy mmap** — no `MAP_POPULATE`. Only the first few pages are faulted into RAM, which keeps their latency under 2 ms even on multi-GB files.
+
+When `--no-mmap` is set (e.g., reading from a pipe), `core/io.asm` provides a streaming read path that processes the file in chunks without requiring a seekable file descriptor.
+
+## Binary size
+
+The stripped release binary is **27 KB** — smaller than most favicons.
+
+| Binary     | Size   |
+|:-----------|:-------|
+| oxsv       | 27 KB  |
+| xsv (Rust) | 4.8 MB |
+
+This is a direct consequence of the design: no libc in the hot path, no allocator, no garbage collector, no runtime. The `release` build target passes `-s` to the linker to strip debug symbols:
+
+```bash
+make release
+```

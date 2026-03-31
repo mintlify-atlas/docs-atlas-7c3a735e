@@ -1,80 +1,111 @@
 ---
 title: "Quickstart"
-description: "Start building awesome documentation in minutes"
+description: "Get oxsv working in minutes. Inspect headers, filter rows, and build an index for instant random access on large CSV files."
 ---
 
-## Get started in three steps
+This guide gets you from zero to processing a real CSV file in a few minutes.
 
-Get your documentation site running locally and make your first customization.
+<Steps>
+  <Step title="Install oxsv">
+    Follow the [installation guide](/installation) to build and install oxsv. Once complete, verify it is available:
 
-### Step 1: Set up your local environment
+    ```bash
+    oxsv -v
+    ```
+  </Step>
+  <Step title="Inspect a CSV file">
+    Before processing a file, check how many rows it has and what columns are available.
 
-<AccordionGroup>
-  <Accordion icon="copy" title="Clone your docs locally">
-    During the onboarding process, you created a GitHub repository with your docs content if you didn't already have one. You can find a link to this repository in your [dashboard](https://dashboard.mintlify.com).
-    
-    To clone the repository locally so that you can make and preview changes to your docs, follow the [Cloning a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) guide in the GitHub docs.
-  </Accordion>
-  <Accordion icon="rectangle-terminal" title="Start the preview server">
-    1. Install the Mintlify CLI: `npm i -g mint`
-    2. Navigate to your docs directory and run: `mint dev`
-    3. Open `http://localhost:3000` to see your docs live!
-    
-    <Tip>Your preview updates automatically as you edit files.</Tip>
-  </Accordion>
-</AccordionGroup>
+    ```bash
+    oxsv headers data.csv
+    ```
 
-### Step 2: Deploy your changes
+    ```text
+    1	id
+    2	name
+    3	email
+    4	status
+    ```
 
-<AccordionGroup>
-  <Accordion icon="github" title="Install our GitHub app">
-    Install the Mintlify GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app).
-    
-    Our GitHub app automatically deploys your changes to your docs site, so you don't need to manage deployments yourself.
-</Accordion>
-<Accordion icon="palette" title="Update your site name and colors">
-    For a first change, let's update the name and colors of your docs site.
+    ```bash
+    oxsv count data.csv
+    ```
 
-    1. Open `docs.json` in your editor.
-    2. Change the `"name"` field to your project name.
-    3. Update the `"colors"` to match your brand.
-    4. Save and see your changes instantly at `http://localhost:3000`.
+    ```text
+    42
+    ```
 
-    <Tip>Try changing the primary color to see an immediate difference!</Tip>
-  </Accordion>
-</AccordionGroup>
+    `count` returns the number of data rows, excluding the header.
+  </Step>
+  <Step title="View the first rows">
+    Print the first 10 rows to get a feel for the data:
 
-### Step 3: Go live
+    ```bash
+    oxsv head -n 10 data.csv
+    ```
 
-<Accordion icon="rocket" title="Publish your docs">
-  1. Commit and push your changes.
-  2. Your docs will update and be live in moments!
-</Accordion>
+    ```text
+    id,name,email,status
+    1,alice,alice@example.com,active
+    2,bob,bob@example.com,inactive
+    3,carol,carol@example.com,active
+    ```
+
+    Omit `-n` to use the default of 10 rows.
+  </Step>
+  <Step title="Filter rows">
+    Use `search` to keep only rows where a column matches a value. By default, oxsv uses exact match.
+
+    ```bash
+    oxsv search -s status active data.csv
+    ```
+
+    This prints all rows where the `status` column is exactly `active`, including the header row.
+
+    For a substring match, add `--sub`:
+
+    ```bash
+    oxsv search -s name --sub ali data.csv
+    ```
+
+    UTF-8 works without any configuration:
+
+    ```bash
+    oxsv search -s name "田中" data.csv
+    ```
+  </Step>
+  <Step title="Build an index for fast random access">
+    For large files, build an index once so that `slice` and `tail` become O(1):
+
+    ```bash
+    oxsv index data.csv
+    ```
+
+    This creates `data.csv.idx` in the same directory. With the index in place, jump directly to any row:
+
+    ```bash
+    oxsv slice -i 1000000 -l 10 data.csv
+    ```
+
+    `-i` is the 0-based starting row index. `-l` is the number of rows to return. Without an index, `slice` streams through the file; with an index, it seeks directly to the byte offset.
+
+    If the source file changes, the stale index is silently ignored and oxsv falls back to streaming.
+  </Step>
+</Steps>
 
 ## Next steps
 
-Now that you have your docs running, explore these key features:
-
 <CardGroup cols={2}>
-
-<Card title="Write Content" icon="pen-to-square" href="/essentials/markdown">
-  Learn MDX syntax and start writing your documentation.
-</Card>
-
-<Card title="Customize style" icon="palette" href="/essentials/settings">
-  Make your docs match your brand perfectly.
-</Card>
-
-<Card title="Add code examples" icon="square-code" href="/essentials/code">
-  Include syntax-highlighted code blocks.
-</Card>
-
-<Card title="API documentation" icon="code" href="/api-reference/introduction">
-  Auto-generate API docs from OpenAPI specs.
-</Card>
-
+  <Card title="Inspect commands" icon="magnifying-glass" href="/commands/inspect">
+    `count`, `headers`, `head`, and `tail` — commands for viewing CSV structure and content.
+  </Card>
+  <Card title="Filter commands" icon="filter" href="/commands/filter">
+    `search` and `select` — commands for extracting rows by value and columns by name or index.
+  </Card>
+  <Card title="Transform commands" icon="arrows-split-up-and-left" href="/commands/transform">
+    `sort`, `fmt`, `cat`, `stats`, and `frequency` — commands for reshaping and analyzing CSV files.
+  </Card>
+  <Card title="Large file guide" icon="database" href="/guides/large-files">
+    Workflows for files that are too large for other tools, including index-based access and S3 streaming.
+  </Card>
 </CardGroup>
-
-<Note>
-  **Need help?** See our [full documentation](https://mintlify.com/docs) or join our [community](https://mintlify.com/community).
-</Note>

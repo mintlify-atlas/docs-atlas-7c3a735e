@@ -1,0 +1,94 @@
+---
+title: "Installation"
+description: "Build oxsv from source on Linux x86-64. Requires nasm and gcc. The release binary is 27 KB stripped."
+---
+
+oxsv is built from source. There are no pre-built binaries and no package manager releases.
+
+<Warning>
+  oxsv requires an x86-64 CPU with AVX2 support. It does not run on ARM or on older x86 CPUs that lack AVX2 instructions. Attempting to run oxsv on an unsupported CPU will produce an illegal instruction error.
+</Warning>
+
+## Build requirements
+
+| Requirement | Details                          |
+|:------------|:---------------------------------|
+| Architecture | x86-64 with AVX2               |
+| OS           | Linux                           |
+| Assembler    | nasm                            |
+| C compiler   | gcc                             |
+
+## Build steps
+
+<Steps>
+  <Step title="Install nasm">
+    Install nasm using your distribution's package manager.
+
+    ```bash
+    # Debian / Ubuntu
+    sudo apt install nasm
+
+    # Fedora / RHEL
+    sudo dnf install nasm
+    ```
+  </Step>
+  <Step title="Clone the repository">
+    ```bash
+    git clone https://github.com/rxxuzi/oxsv.git
+    cd oxsv
+    ```
+  </Step>
+  <Step title="Build">
+    ```bash
+    make
+    ```
+
+    This produces the binary at `out/oxsv`.
+
+    <Tip>
+      For production use, run `make release` instead. It compiles with `-O2 -DNDEBUG` and strips the binary, producing the 27 KB release artifact. The default `make` build includes debug symbols.
+    </Tip>
+  </Step>
+  <Step title="Install">
+    ```bash
+    sudo make install
+    ```
+
+    This runs `make release` and installs the stripped binary to `/usr/local/bin/oxsv`.
+  </Step>
+</Steps>
+
+## Verify the installation
+
+```bash
+oxsv -v
+```
+
+```text
+oxsv 1.0.0
+Copyright (C) 2026 rxxuzi.
+License MIT: <https://opensource.org/licenses/MIT>
+This is free software: you are free to change and redistribute it.
+There is NO WARRANTY, to the extent permitted by law.
+```
+
+## Makefile targets
+
+| Target          | Description                                                                        |
+|:----------------|:-----------------------------------------------------------------------------------|
+| `make`          | Default build (`-O2`, with DWARF debug info in ASM). Output: `out/oxsv`.           |
+| `make debug`    | Debug build with symbols (`-g -O0 -DDEBUG`). Includes extra diagnostics.           |
+| `make release`  | Optimized, stripped build (`-O2 -DNDEBUG -s`). Produces the 27 KB binary.         |
+| `make install`  | Runs `make release`, then installs to `/usr/local/bin/oxsv`.                       |
+| `make clean`    | Removes the `out/` directory.                                                      |
+| `make test`     | Builds and runs the test suite.                                                    |
+| `make bench`    | Builds and runs SIMD microbenchmarks.                                              |
+
+## Binary size
+
+| Binary     | Size   |
+|:-----------|:-------|
+| oxsv       | 27 KB  |
+| xsv (Rust) | 4.8 MB |
+
+The stripped release binary is 178x smaller than xsv — smaller than most favicons.

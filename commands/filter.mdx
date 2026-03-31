@@ -1,0 +1,134 @@
+---
+title: "Filter commands"
+description: "Commands for extracting rows and columns from a CSV."
+---
+
+## search
+
+Filter rows where a column matches a condition. The header row is always included in the output.
+
+**Synopsis**
+
+```bash
+oxsv search -s COL [mode] PATTERN <file>
+```
+
+**Flags**
+
+| Flag      | Description                          |
+| :-------- | :----------------------------------- |
+| `-s COL`  | Column to search (required)          |
+| `--sub`   | Substring match                      |
+| `--gt`    | Numeric: field > PATTERN             |
+| `--lt`    | Numeric: field < PATTERN             |
+| `--ge`    | Numeric: field &gt;= PATTERN            |
+| `--le`    | Numeric: field &lt;= PATTERN            |
+
+<ParamField query="-s" type="string" required>
+  Column name to search. Must match a header in the file exactly.
+</ParamField>
+
+<ParamField query="--sub" type="boolean">
+  Match rows where the column value contains PATTERN as a substring. Default is exact match.
+</ParamField>
+
+<ParamField query="--gt" type="boolean">
+  Numeric comparison: include rows where the column value is greater than PATTERN.
+</ParamField>
+
+<ParamField query="--lt" type="boolean">
+  Numeric comparison: include rows where the column value is less than PATTERN.
+</ParamField>
+
+<ParamField query="--ge" type="boolean">
+  Numeric comparison: include rows where the column value is greater than or equal to PATTERN.
+</ParamField>
+
+<ParamField query="--le" type="boolean">
+  Numeric comparison: include rows where the column value is less than or equal to PATTERN.
+</ParamField>
+
+<Note>
+  The default mode is exact match. Unlike xsv, `search` does not use regex — use `--sub` for partial matching.
+</Note>
+
+**Examples**
+
+Exact match:
+
+```bash
+$ oxsv search -s status active users.csv
+id,name,email,status
+1,alice,alice@example.com,active
+3,carol,carol@example.com,active
+```
+
+Substring match:
+
+```bash
+$ oxsv search -s name --sub ali users.csv
+id,name,email,status
+1,alice,alice@example.com,active
+```
+
+Numeric comparison:
+
+```bash
+$ oxsv search -s age --ge 18 users.csv
+id,name,age,status
+3,carol,22,active
+4,dave,34,inactive
+```
+
+UTF-8 pattern:
+
+```bash
+$ oxsv search -s name "田中" users.csv
+id,name,email,status
+7,田中,tanaka@example.com,active
+```
+
+---
+
+## select
+
+Extract one or more columns by name or 1-based index. The output preserves column order as specified.
+
+**Synopsis**
+
+```bash
+oxsv select <cols> <file>
+```
+
+Columns are comma-separated. Names and indices can be mixed. Up to 64 columns are supported.
+
+**Example: by name**
+
+```bash
+$ oxsv select name,status users.csv
+name,status
+alice,active
+bob,inactive
+```
+
+**Example: by index**
+
+```bash
+$ oxsv select 1,3 users.csv
+id,email
+1,alice@example.com
+2,bob@example.com
+```
+
+**Example: mixed names and indices**
+
+```bash
+$ oxsv select name,4 users.csv
+name,status
+alice,active
+bob,inactive
+```
+
+<Warning>
+  `select` supports a maximum of 64 columns. Specifying more than 64 columns results in an error.
+</Warning>

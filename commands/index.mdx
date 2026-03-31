@@ -1,0 +1,87 @@
+---
+title: "Index and slice"
+description: "Building a row offset index for O(1) random access on large files."
+---
+
+## index
+
+Build a row offset index for a CSV file. Once built, commands like `slice` and `tail` can seek directly to any row without streaming the whole file.
+
+**Synopsis**
+
+```bash
+oxsv index <file>
+```
+
+The command creates `<file>.idx` in the same directory as the source file. The index stores a byte offset for every row plus the source file's size and modification time.
+
+<Note>
+  Index invalidation is automatic. Before each use, oxsv compares the stored file size and mtime against the live file. If either has changed, the stale index is silently ignored and the command falls back to streaming.
+</Note>
+
+**Example**
+
+```bash
+$ oxsv index huge.csv          # creates huge.csv.idx
+```
+
+---
+
+## slice
+
+Extract a range of rows from a file by row index.
+
+**Synopsis**
+
+```bash
+oxsv slice -i START [-l LEN] <file>
+```
+
+Row indices are 0-based and refer to data rows (the header is not counted). The header row is always included in the output.
+
+**Flags**
+
+| Flag       | Description                                |
+| :--------- | :----------------------------------------- |
+| `-i START` | Starting row index, 0-based (required)     |
+| `-l LEN`   | Number of rows to return (default: all remaining) |
+
+<ParamField query="-i" type="integer" required>
+  0-based index of the first data row to return.
+</ParamField>
+
+<ParamField query="-l" type="integer">
+  Maximum number of rows to return. When omitted, all rows from START to the end of the file are returned.
+</ParamField>
+
+**Example: with index (O(1))**
+
+```bash
+$ oxsv index huge.csv
+$ oxsv slice -i 999999 -l 1 huge.csv   # instant
+id,name,email,status
+1000000,user1000000,u1000000@example.com,active
+```
+
+**Example: without index (streaming)**
+
+```bash
+$ oxsv slice -i 100 -l 5 users.csv
+id,name,email,status
+101,user101,user101@example.com,active
+102,user102,user102@example.com,inactive
+103,user103,user103@example.com,active
+104,user104,user104@example.com,active
+105,user105,user105@example.com,inactive
+```
+
+<Tip>
+  **Large file workflow**: run `oxsv index` once after receiving or generating a large file, then use `slice` and `tail` as many times as needed at O(1) cost.
+
+  ```bash
+  oxsv index huge.csv
+
+  oxsv slice -i 5000000 -l 100 huge.csv
+  oxsv tail -n 50 huge.csv
+  ```
+</Tip>

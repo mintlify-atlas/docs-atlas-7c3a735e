@@ -1,0 +1,87 @@
+---
+title: "Working with large files"
+description: Strategies for efficiently processing CSVs that are larger than available RAM.
+---
+
+## Memory mapping
+
+By default, oxsv memory-maps the input file rather than loading it into RAM. The operating system maps the file's byte range into the process's virtual address space and faults in only the pages that are actually read.
+
+The result: physical RAM usage stays in single-digit megabytes regardless of file size. A 64 GB CSV on a 4 GB machine works fine. There is no need to split the file or provision extra memory before processing.
+
+<Note>
+  `headers` and `head` use lazy mmap without `MAP_POPULATE`, so the kernel only faults the first few pages of the file. These commands return in under 2 ms even on multi-GB files, because they never touch the rest of the data.
+</Note>
+
+## The row offset index
+
+For random access into large files, oxsv can build an index:
+
+```bash
+oxsv index huge.csv
+```
+
+This creates `huge.csv.idx` in the same directory. The index stores a byte offset for every row in the file, along with the source file's size and modification time.
+
+With an index present:
+- `slice` is O(1) — it seeks directly to the target row
+- `tail` is O(1) — it seeks to the last N row offsets
+
+Without an index, both commands stream through the entire file from the beginning.
+
+If the source file changes after the index was built (different size or mtime), the stale index is silently ignored and oxsv falls back to streaming.
+
+<Tip>
+  For repeated random access operations on the same file, always build the index first — it makes `slice` and `tail` O(1) regardless of how deep into the file you are reading.
+</Tip>
+
+## Streaming mode
+
+Use `--no-mmap` when the input cannot be memory-mapped — for example, when reading from stdin, a named pipe, or a network source such as S3:
+
+```bash
+aws s3 cp s3://bucket/huge.csv - | oxsv --no-mmap search -s status "active"
+```
+
+In streaming mode, oxsv reads sequentially from the file descriptor rather than mapping it. Random-access operations that would normally be O(1) with an index fall back to a full scan.
+
+## Recommended workflow for large files
+
+<Steps>
+  <Step title="Build the index">
+    Create the row offset index once before doing any other operations. This enables O(1) random access for `slice` and `tail`.
+
+    ```bash
+    oxsv index huge.csv
+    ```
+  </Step>
+  <Step title="Inspect structure">
+    Check column names and total row count without reading the whole file.
+
+    ```bash
+    oxsv headers huge.csv
+    oxsv count huge.csv
+    ```
+  </Step>
+  <Step title="Preview data">
+    Print the first rows to verify the schema and content look correct.
+
+    ```bash
+    oxsv head -n 20 huge.csv
+    ```
+  </Step>
+  <Step title="Random access">
+    Jump directly to any row range. With the index, this is instant regardless of file size.
+
+    ```bash
+    oxsv slice -i 99999000 -l 100 huge.csv
+    ```
+  </Step>
+  <Step title="Filter">
+    Scan the file for rows matching a condition.
+
+    ```bash
+    oxsv search -s status active huge.csv
+    ```
+  </Step>
+</Steps>

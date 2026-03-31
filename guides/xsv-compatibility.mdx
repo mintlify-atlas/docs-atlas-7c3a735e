@@ -1,0 +1,77 @@
+---
+title: "xsv compatibility"
+description: oxsv is a drop-in replacement for xsv with the same command names and similar flags, but with a few differences.
+---
+
+oxsv implements the core xsv commands with the same names and similar flags. Most scripts written for xsv will work with oxsv without modification. The sections below document where behavior differs.
+
+## Compatible commands
+
+The following commands are implemented in oxsv and match their xsv counterparts by name:
+
+| Command | Description |
+|:--------|:------------|
+| `count` | Count data rows |
+| `headers` | Show column names with 1-based index |
+| `head` | Print first N rows |
+| `tail` | Print last N rows |
+| `select` | Extract columns by name or index |
+| `search` | Filter rows by pattern match |
+| `slice` | Extract a row range |
+| `index` | Build a row offset index |
+| `stats` | Show column statistics |
+| `frequency` | Count unique values in a column (alias: `freq`) |
+| `sort` | Sort rows by a column |
+| `fmt` | Reformat CSV with a different delimiter |
+| `cat` | Concatenate multiple CSV files |
+
+## Key differences
+
+### Search behavior
+
+xsv `search` matches rows using a regular expression. oxsv `search` uses **exact match** by default, which is faster and covers the majority of use cases.
+
+For partial matching, use `--sub`. For numeric comparisons, use `--gt`, `--lt`, `--ge`, or `--le`.
+
+<Note>
+  The exact-match default is intentional: it avoids the overhead of regex compilation and execution on every row. Use `--sub` when you need substring matching.
+</Note>
+
+| Mode | Flag | Example |
+|:-----|:-----|:--------|
+| Exact match (default) | _(none)_ | `oxsv search -s status active file.csv` |
+| Substring match | `--sub` | `oxsv search -s name --sub ali file.csv` |
+| Greater than | `--gt` | `oxsv search -s age --gt 30 file.csv` |
+| Less than | `--lt` | `oxsv search -s age --lt 18 file.csv` |
+| Greater than or equal | `--ge` | `oxsv search -s age --ge 18 file.csv` |
+| Less than or equal | `--le` | `oxsv search -s age --le 65 file.csv` |
+
+### Unimplemented commands
+
+<Warning>
+  The following xsv commands are **not implemented** in oxsv: `join`, `sample`, `split`, `flatten`, `table`. Scripts that rely on these commands will not work without modification.
+</Warning>
+
+## Flag compatibility
+
+Most flags use the same names as xsv. The global flags in oxsv match the long-form xsv flags:
+
+| xsv flag | oxsv flag | Description |
+|:---------|:----------|:------------|
+| `--delimiter` / `-d` | `-d CHAR` | Field delimiter |
+| `--no-headers` / `-n` | `-n` | No header row |
+| `--output` / `-o` | `-o FILE` | Write to file |
+| _(stdin via `-`)_ | `--no-mmap` | Streaming read for pipes |
+
+## Migrating from xsv
+
+| Task | xsv | oxsv |
+|:-----|:----|:-----|
+| Count rows | `xsv count file.csv` | `oxsv count file.csv` |
+| Show headers | `xsv headers file.csv` | `oxsv headers file.csv` |
+| Filter rows | `xsv search -s col "regex" file.csv` | `oxsv search -s col "exact" file.csv` |
+| Substring filter | N/A (default is regex) | `oxsv search -s col --sub "partial" file.csv` |
+| Numeric filter | N/A | `oxsv search -s col --ge 18 file.csv` |
+| Build index | `xsv index file.csv` | `oxsv index file.csv` |
+| Value counts | `xsv frequency -s col file.csv` | `oxsv frequency -s col file.csv` |
+| Sort rows | `xsv sort -s col file.csv` | `oxsv sort -s col file.csv` |

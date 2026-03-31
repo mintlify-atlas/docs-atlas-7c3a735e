@@ -1,0 +1,98 @@
+---
+title: "Global flags"
+description: Flags that control oxsv's input format and output destination. These flags appear BEFORE the command name.
+---
+
+## Syntax
+
+```bash
+oxsv [global-flags] <command> [options] <file>
+```
+
+<Note>
+  Global flags must come **before** the command name. They are NOT sub-command flags. Placing them after the command name will not work as expected.
+</Note>
+
+## Flag reference
+
+| Flag | Description |
+|:-----|:------------|
+| `-d CHAR` | Field delimiter (default: `,`) |
+| `-n` | No header row — first row is treated as data |
+| `-o FILE` | Write output to file instead of stdout |
+| `--no-mmap` | Streaming read mode for pipes/stdin |
+| `-h` | Show help |
+| `-v` | Show version and license |
+
+## `-d CHAR` — field delimiter
+
+Sets the character used to separate fields. Defaults to `,`. Use this flag when processing tab-separated (TSV) or other delimited files.
+
+```bash
+oxsv -d $'\t' count data.tsv
+```
+
+## `-n` — no header row
+
+Tells oxsv that the file has no header row. The first row is treated as data rather than column names. Row counts include the first row.
+
+```bash
+oxsv -n count raw.csv
+```
+
+<Warning>
+  **`-n` flag ambiguity:** some subcommands like `head` and `tail` also accept `-n NUM` to specify a row count. The global `-n` (no-headers) must appear **before** the command name; the subcommand `-n NUM` appears **after** the command name. They serve different purposes and do not conflict when placed correctly.
+
+  ```bash
+  # global -n (no-headers) comes before 'head'
+  # subcommand -n 5 (row count) comes after 'head'
+  oxsv -n head -n 5 data.csv
+  ```
+</Warning>
+
+## `-o FILE` — output to file
+
+Redirects output to a file instead of stdout. The file is created if it does not exist, or truncated if it does.
+
+```bash
+oxsv -o result.csv select name,email data.csv
+```
+
+## `--no-mmap` — streaming read mode
+
+Switches oxsv from memory-mapped file access to streaming read mode. This is required when reading from stdin or a pipe, because pipes are not seekable and cannot be memory-mapped.
+
+```bash
+cat data.csv | oxsv --no-mmap count
+```
+
+## `-h` — help
+
+Prints the help message listing all commands and global flags, then exits.
+
+```bash
+oxsv -h
+```
+
+## `-v` — version and license
+
+Prints the version string, copyright notice, and MIT license information, then exits.
+
+```bash
+oxsv -v
+```
+
+## Combined example
+
+```bash
+# tab-delimited, no header, output to file
+oxsv -d $'\t' -n -o result.csv head -n 5 data.tsv
+```
+
+In this example:
+- `-d $'\t'` sets the delimiter to tab
+- `-n` treats the first row as data (no header)
+- `-o result.csv` writes output to `result.csv`
+- `head` is the command
+- `-n 5` is the subcommand flag limiting output to 5 rows
+- `data.tsv` is the input file

@@ -1,0 +1,97 @@
+---
+title: "Recipes"
+description: Common patterns and shell pipelines for real-world CSV workflows.
+---
+
+## Pipe from S3
+
+Stream a file directly from S3 without downloading it first. Use `--no-mmap` because stdin is not seekable.
+
+```bash
+aws s3 cp s3://bucket/huge.csv - | oxsv --no-mmap search -s status active
+```
+
+## TSV input
+
+Use `-d $'\t'` before the command name to set the field delimiter to tab.
+
+```bash
+oxsv -d $'\t' select name,age data.tsv
+```
+
+## Chain commands
+
+Pipe oxsv output into another oxsv invocation. Use `--no-mmap` on the receiving end because it reads from stdin.
+
+<CodeGroup>
+
+```bash Count active users
+oxsv search -s status active users.csv | oxsv --no-mmap count
+```
+
+```bash Top 5 most common cities
+oxsv frequency -s city -l 5 users.csv
+```
+
+</CodeGroup>
+
+## Large file workflow
+
+Build the index once, then perform all subsequent random-access operations in O(1) time.
+
+<Tip>
+  Run `oxsv index` before any `slice` or `tail` operations on large files. The index stores byte offsets for every row, making seeks instant regardless of file size.
+</Tip>
+
+```bash
+# build index once
+oxsv index huge.csv
+
+# instant random access
+oxsv slice -i 5000000 -l 100 huge.csv
+oxsv tail -n 50 huge.csv
+```
+
+## Convert formats
+
+<CodeGroup>
+
+```bash CSV to TSV
+oxsv fmt -t data.csv > data.tsv
+```
+
+```bash CSV to pipe-separated
+oxsv fmt --out-delimiter '|' data.csv
+```
+
+</CodeGroup>
+
+## Concatenate monthly files
+
+`cat` outputs the first file in full and skips the header row of each subsequent file, producing a single CSV with one header.
+
+```bash
+oxsv cat jan.csv feb.csv mar.csv > q1.csv
+```
+
+## Numeric filtering
+
+<CodeGroup>
+
+```bash Users 18 or older
+oxsv search -s age --ge 18 users.csv
+```
+
+```bash Sort by amount descending
+oxsv sort -s amount -N -R data.csv
+```
+
+</CodeGroup>
+
+## UTF-8 search
+
+oxsv assumes UTF-8. SIMD scans for ASCII delimiters which never appear inside multibyte sequences, so non-ASCII patterns work without any special handling.
+
+```bash
+oxsv search -s name "田中" users.csv
+```
